@@ -61,11 +61,7 @@ public class FileStorageService {
         String safeName = buildFileName(file.getOriginalFilename());
 
         if (useS3Storage()) {
-            try {
-                return uploadToS3(file, safeName);
-            } catch (SdkException | IllegalStateException ex) {
-                return uploadToLocal(file, safeName);
-            }
+            return uploadToS3(file, safeName);
         }
 
         return uploadToLocal(file, safeName);
@@ -110,6 +106,8 @@ public class FileStorageService {
             return buildPublicFileUrl(fileName);
         } catch (IOException ex) {
             throw new IllegalStateException("Spaces ruu file bairshuulah ued aldaa garlaa.", ex);
+        } catch (SdkException ex) {
+            throw new IllegalStateException("Spaces upload amjiltgui bolloo. S3 tohirgoo bolon bucket permission-ee shalgana uu.", ex);
         }
     }
 
