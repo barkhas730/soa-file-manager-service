@@ -15,6 +15,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -28,6 +29,7 @@ public class FileStorageService {
     private final String uploadDir;
     private final String bucketName;
     private final String bucketEndpoint;
+    private final String publicBaseUrl;
     private final String accessKey;
     private final String secretKey;
     private final String region;
@@ -37,6 +39,7 @@ public class FileStorageService {
             @Value("${app.upload-dir:uploads}") String uploadDir,
             @Value("${s3.bucket-name:}") String bucketName,
             @Value("${s3.endpoint:}") String bucketEndpoint,
+            @Value("${s3.public-base-url:}") String publicBaseUrl,
             @Value("${s3.access.key:}") String accessKey,
             @Value("${s3.secret.key:}") String secretKey,
             @Value("${s3.region:sgp1}") String region) {
@@ -44,6 +47,7 @@ public class FileStorageService {
         this.uploadDir = uploadDir;
         this.bucketName = bucketName;
         this.bucketEndpoint = bucketEndpoint;
+        this.publicBaseUrl = publicBaseUrl;
         this.accessKey = accessKey;
         this.secretKey = secretKey;
         this.region = region;
@@ -51,13 +55,17 @@ public class FileStorageService {
 
     public String uploadFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("Файл сонгоогүй байна.");
+            throw new IllegalArgumentException("File songoogui baina.");
         }
 
         String safeName = buildFileName(file.getOriginalFilename());
 
         if (useS3Storage()) {
-            return uploadToS3(file, safeName);
+            try {
+                return uploadToS3(file, safeName);
+            } catch (SdkException | IllegalStateException ex) {
+                return uploadToLocal(file, safeName);
+            }
         }
 
         return uploadToLocal(file, safeName);
@@ -80,7 +88,7 @@ public class FileStorageService {
             Files.copy(file.getInputStream(), targetFile, StandardCopyOption.REPLACE_EXISTING);
             return baseUrl + "/files/view/" + fileName;
         } catch (IOException ex) {
-            throw new IllegalStateException("Файл хадгалах үед алдаа гарлаа.", ex);
+            throw new IllegalStateException("File hadgalah ued aldaa garlaa.", ex);
         }
     }
 
@@ -99,9 +107,21 @@ public class FileStorageService {
                     .build();
 
             s3Client.putObject(request, RequestBody.fromBytes(file.getBytes()));
-            return bucketEndpoint.replaceAll("/$", "") + "/" + bucketName + "/" + fileName;
+            return buildPublicFileUrl(fileName);
         } catch (IOException ex) {
-            throw new IllegalStateException("Spaces руу файл байршуулах үед алдаа гарлаа.", ex);
+            throw new IllegalStateException("Spaces ruu file bairshuulah ued aldaa garlaa.", ex);
         }
+    }
+
+    private String buildPublicFileUrl(String fileName) {
+        if (!publicBaseUrl.isBlank()) {
+            return publicBaseUrl.replaceAll("/$", "") + "/" + fileName;
+        }
+
+        return "https://" + bucketName + "." + stripProtocol(bucketEndpoint) + "/" + fileName;
+    }
+
+    private String stripProtocol(String url) {
+        return url.replaceFirst("^https?://", "").replaceAll("/$", "");
     }
 }
