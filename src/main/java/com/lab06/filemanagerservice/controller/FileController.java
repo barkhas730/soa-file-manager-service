@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.lab06.filemanagerservice.dto.UploadResponse;
+import com.lab06.filemanagerservice.exception.UnauthorizedException;
 import com.lab06.filemanagerservice.service.FileStorageService;
 import com.lab06.filemanagerservice.service.SoapAuthClient;
 
@@ -31,21 +32,21 @@ public class FileController {
                                                      @RequestParam("file") MultipartFile file) {
         String token = extractToken(authorization);
         if (!soapAuthClient.validateToken(token)) {
-            return ResponseEntity.status(401).body(new UploadResponse("Токен буруу эсвэл хүчингүй байна.", null, null));
+            throw new UnauthorizedException("Token buruu esvel huchingui baina.");
         }
 
         String fileUrl = fileStorageService.uploadFile(file);
-        return ResponseEntity.ok(new UploadResponse("Файл амжилттай хуулагдлаа.", fileUrl, file.getOriginalFilename()));
+        return ResponseEntity.ok(new UploadResponse("File amjilttai huulagdsan.", fileUrl, file.getOriginalFilename()));
     }
 
     @GetMapping("/health")
     public String health() {
-        return "File manager service ажиллаж байна.";
+        return "File manager service ajillaj baina.";
     }
 
     private String extractToken(String authorization) {
         if (!StringUtils.hasText(authorization) || !authorization.startsWith("Bearer ")) {
-            throw new IllegalArgumentException("Authorization header байхгүй байна.");
+            throw new UnauthorizedException("Authorization header baihgui baina.");
         }
 
         return authorization.substring(7);
